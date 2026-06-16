@@ -1,6 +1,11 @@
 {
     "ui_version": "1.0.0",
     "game_version": "1.0.0",
-    "game_url": "https://cr949549.tw1.ru/game/game.zip",
-    "game_size": 6871947674
+    "sftp": {
+        "host": "cr949549.tw1.ru",
+        "port": 22,
+        "username": "cr949549",
+        "password": "P6npwiNT!dS$",
+        "remote_path": "/home/c/cr949549/public_html/game/dray"
+    }
 }
