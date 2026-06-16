@@ -5,69 +5,501 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dray launcher</title>
     <style>
-        *{margin:0;padding:0;box-sizing:border-box;user-select:none}
-        body{background:#0f0f1a;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
-        .app{width:100vw;height:100vh;background:linear-gradient(135deg,#1a1a2e 0%,#0d0d1a 100%);display:flex;flex-direction:column}
-        .title-bar{height:52px;background:rgba(26,26,46,0.85);backdrop-filter:blur(20px);display:flex;justify-content:space-between;align-items:center;padding:0 24px;border-bottom:1px solid rgba(231,76,60,0.3);-webkit-app-region:drag}
-        .logo{display:flex;align-items:center;gap:12px}
-        .logo-icon{font-size:28px;font-weight:800;color:#e74c3c}
-        .logo-text{font-size:20px;font-weight:700;color:white}
-        .logo-text span{color:#e74c3c}
-        .version-badge{font-size:10px;color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:30px;margin-left:8px}
-        .window-controls{display:flex;gap:10px;-webkit-app-region:no-drag}
-        .window-controls button{width:32px;height:32px;background:rgba(255,255,255,0.04);border:none;border-radius:10px;color:rgba(255,255,255,0.7);font-size:16px;cursor:pointer;transition:0.2s}
-        .window-controls button:hover{background:rgba(231,76,60,0.3);color:white}
-        .window-controls .close-btn:hover{background:#e74c3c}
-        .main-layout{display:flex;flex:1;padding:24px 28px;gap:24px;overflow:hidden}
-        .sidebar{width:210px;display:flex;flex-direction:column;gap:8px}
-        .nav-item{padding:12px 16px;background:rgba(255,255,255,0.02);border-radius:14px;color:rgba(255,255,255,0.6);cursor:pointer;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;transition:0.2s}
-        .nav-item:hover{background:rgba(231,76,60,0.12);color:#e74c3c}
-        .nav-item.active{background:linear-gradient(135deg,rgba(231,76,60,0.12),rgba(231,76,60,0.03));color:#e74c3c;border-left:2px solid #e74c3c}
-        .content-panel{flex:1;overflow-y:auto;padding-right:8px}
-        .content-panel::-webkit-scrollbar{width:5px}
-        .content-panel::-webkit-scrollbar-track{background:rgba(255,255,255,0.02);border-radius:10px}
-        .content-panel::-webkit-scrollbar-thumb{background:#e74c3c;border-radius:10px}
-        .hero-card{background:rgba(231,76,60,0.06);border-radius:28px;padding:26px 28px;margin-bottom:24px;border:1px solid rgba(231,76,60,0.15)}
-        .game-name{font-size:34px;font-weight:700;color:white}
-        .game-desc{color:rgba(255,255,255,0.5);margin-top:8px;font-size:14px}
-        .server-block{background:rgba(0,0,0,0.45);border-radius:20px;padding:18px 22px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center}
-        .server-label{color:rgba(255,255,255,0.5);font-size:12px;margin-bottom:4px}
-        .server-address{color:#e74c3c;font-family:monospace;font-size:18px;font-weight:700}
-        .online-status{display:flex;align-items:center;gap:8px}
-        .online-dot{width:8px;height:8px;background:#4caf50;border-radius:50%;animation:pulse 1.8s infinite}
-        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.1)}}
-        .online-text{font-size:13px;color:#4caf50;font-weight:500}
-        .progress-panel{background:rgba(0,0,0,0.5);border-radius:20px;padding:18px 20px;margin-bottom:20px}
-        .progress-bar-bg{background:rgba(255,255,255,0.08);border-radius:60px;height:8px;overflow:hidden}
-        .progress-fill{width:0%;height:100%;background:#e74c3c;border-radius:60px;transition:width 0.25s}
-        .progress-stats-row{display:flex;justify-content:space-between;color:rgba(255,255,255,0.7);font-size:12px;margin-top:12px;flex-wrap:wrap;gap:12px}
-        .flex-buttons{display:flex;gap:12px;margin-bottom:16px}
-        .primary-btn{flex:1;padding:15px;background:#e74c3c;border:none;border-radius:60px;color:white;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s;display:flex;align-items:center;justify-content:center;gap:8px}
-        .primary-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(231,76,60,0.35)}
-        .primary-btn:disabled{opacity:0.5;transform:none;cursor:not-allowed}
-        .secondary-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:60px;color:white;font-weight:600;padding:12px 20px;cursor:pointer;transition:0.2s}
-        .secondary-btn:hover{background:rgba(231,76,60,0.2);border-color:#e74c3c}
-        .status-message{padding:12px;border-radius:60px;text-align:center;font-size:13px;margin-top:16px;font-weight:500}
-        .status-ready{background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.7)}
-        .status-busy{background:rgba(231,76,60,0.12);color:#e74c3c}
-        .status-success{background:rgba(76,175,80,0.12);color:#4caf50}
-        .settings-card{background:rgba(255,255,255,0.02);border-radius:24px;padding:22px;margin-bottom:20px}
-        .settings-title{font-size:18px;font-weight:700;color:white;margin-bottom:18px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:10px}
-        .setting-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0}
-        .setting-label{color:white;font-weight:600}
-        .setting-description{color:rgba(255,255,255,0.4);font-size:12px;margin-top:4px}
-        .folder-input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px;color:white;width:100%;margin-top:8px;font-family:monospace}
-        .toggle-switch{width:46px;height:26px;background:rgba(255,255,255,0.12);border-radius:60px;cursor:pointer;position:relative;transition:0.2s}
-        .toggle-switch.active{background:#e74c3c}
-        .toggle-slider{width:20px;height:20px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:0.2s}
-        .toggle-switch.active .toggle-slider{left:23px}
-        .news-item{background:rgba(255,255,255,0.02);border-radius:20px;padding:18px;margin-bottom:14px;cursor:pointer;transition:0.2s}
-        .news-item:hover{background:rgba(255,255,255,0.06);transform:translateX(5px)}
-        .news-title{color:#e74c3c;font-weight:700;margin-bottom:6px}
-        .news-text{color:rgba(255,255,255,0.7);font-size:13px;line-height:1.4}
-        .news-date{color:rgba(255,255,255,0.35);font-size:11px;margin-top:8px}
-        .toast-notify{position:fixed;bottom:24px;right:24px;background:#1a1a28;border-left:3px solid #e74c3c;padding:12px 20px;border-radius:14px;color:white;font-size:13px;z-index:1000;animation:slideIn 0.25s ease;box-shadow:0 10px 25px rgba(0,0,0,0.5)}
-        @keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #0f0f1a;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        .app {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0d0d1a 100%);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-bar {
+            height: 52px;
+            background: rgba(26, 26, 46, 0.85);
+            backdrop-filter: blur(20px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            border-bottom: 1px solid rgba(231, 76, 60, 0.3);
+            -webkit-app-region: drag;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 28px;
+            font-weight: 800;
+            color: #e74c3c;
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .logo-text span {
+            color: #e74c3c;
+        }
+
+        .version-badge {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 8px;
+            border-radius: 30px;
+            margin-left: 8px;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 10px;
+            -webkit-app-region: no-drag;
+        }
+
+        .window-controls button {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.04);
+            border: none;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .window-controls button:hover {
+            background: rgba(231, 76, 60, 0.3);
+            color: white;
+        }
+
+        .window-controls .close-btn:hover {
+            background: #e74c3c;
+        }
+
+        .main-layout {
+            display: flex;
+            flex: 1;
+            padding: 24px 28px;
+            gap: 24px;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 210px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-item {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 14px;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+
+        .nav-item:hover {
+            background: rgba(231, 76, 60, 0.12);
+            color: #e74c3c;
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.12), rgba(231, 76, 60, 0.03));
+            color: #e74c3c;
+            border-left: 2px solid #e74c3c;
+        }
+
+        .content-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .content-panel::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .content-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+
+        .content-panel::-webkit-scrollbar-thumb {
+            background: #e74c3c;
+            border-radius: 10px;
+        }
+
+        .hero-card {
+            background: rgba(231, 76, 60, 0.06);
+            border-radius: 28px;
+            padding: 26px 28px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(231, 76, 60, 0.15);
+        }
+
+        .game-name {
+            font-size: 34px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .game-desc {
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        .server-block {
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 20px;
+            padding: 18px 22px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .server-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .server-address {
+            color: #e74c3c;
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .online-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            background: #4caf50;
+            border-radius: 50%;
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+
+        .online-text {
+            font-size: 13px;
+            color: #4caf50;
+            font-weight: 500;
+        }
+
+        .nick-wrapper {
+            margin-bottom: 20px;
+        }
+
+        .nick-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .nick-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            font-family: monospace;
+            letter-spacing: 0.5px;
+            transition: border-color 0.2s;
+        }
+
+        .nick-input:focus {
+            border-color: #e74c3c;
+        }
+
+        .nick-input.error {
+            border-color: #e74c3c;
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.2);
+        }
+
+        .nick-error {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 6px;
+            display: none;
+        }
+
+        .nick-error.show {
+            display: block;
+        }
+
+        .progress-panel {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 20px;
+            padding: 18px 20px;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar-bg {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 60px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: #e74c3c;
+            border-radius: 60px;
+            transition: width 0.25s;
+        }
+
+        .progress-stats-row {
+            display: flex;
+            justify-content: space-between;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .flex-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .primary-btn {
+            flex: 1;
+            padding: 15px;
+            background: #e74c3c;
+            border: none;
+            border-radius: 60px;
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .primary-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(231, 76, 60, 0.35);
+        }
+
+        .primary-btn:disabled {
+            opacity: 0.5;
+            transform: none;
+            cursor: not-allowed;
+        }
+
+        .secondary-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 60px;
+            color: white;
+            font-weight: 600;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .secondary-btn:hover {
+            background: rgba(231, 76, 60, 0.2);
+            border-color: #e74c3c;
+        }
+
+        .status-message {
+            padding: 12px;
+            border-radius: 60px;
+            text-align: center;
+            font-size: 13px;
+            margin-top: 16px;
+            font-weight: 500;
+        }
+
+        .status-ready {
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .status-busy {
+            background: rgba(231, 76, 60, 0.12);
+            color: #e74c3c;
+        }
+
+        .status-success {
+            background: rgba(76, 175, 80, 0.12);
+            color: #4caf50;
+        }
+
+        .settings-card {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 24px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .settings-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 10px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+        }
+
+        .setting-label {
+            color: white;
+            font-weight: 600;
+        }
+
+        .setting-description {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .folder-input {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 12px;
+            color: white;
+            width: 100%;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+
+        .toggle-switch {
+            width: 46px;
+            height: 26px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 60px;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+        }
+
+        .toggle-switch.active {
+            background: #e74c3c;
+        }
+
+        .toggle-slider {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: 0.2s;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            left: 23px;
+        }
+
+        .news-item {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 20px;
+            padding: 18px;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .news-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateX(5px);
+        }
+
+        .news-title {
+            color: #e74c3c;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .news-text {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .news-date {
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .toast-notify {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a28;
+            border-left: 3px solid #e74c3c;
+            padding: 12px 20px;
+            border-radius: 14px;
+            color: white;
+            font-size: 13px;
+            z-index: 1000;
+            animation: slideIn 0.25s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -93,69 +525,123 @@
 
         <div class="content-panel">
             <div id="pageGame">
-                <div class="hero-card"><div class="game-name">Dray game</div><div class="game-desc">Уникальный игровой мир • Эксклюзивный контент</div></div>
-                <div class="server-block"><div><div class="server-label">Игровой сервер</div><div class="server-address" id="serverIp">94.23.168.153:2568</div></div><div class="online-status"><div class="online-dot"></div><div class="online-text">Онлайн</div></div></div>
-                <div class="progress-panel" id="progressPanel" style="display:none"><div class="progress-bar-bg"><div class="progress-fill" id="progressFill"></div></div><div class="progress-stats-row"><span id="progressPercent">0%</span><span id="progressSpeed">0 mb/s</span><span id="progressSize">0 / 0 mb</span><span id="progressTime">--:--</span></div></div>
-                <div class="flex-buttons"><button class="primary-btn" id="installBtn">📥 Установить игру</button><button class="secondary-btn" id="cancelBtn" style="display:none">❌ Отменить</button><button class="secondary-btn" id="playBtn" style="display:none">🎮 Запустить</button></div>
+                <div class="hero-card">
+                    <div class="game-name">Dray game</div>
+                    <div class="game-desc">Уникальный игровой мир • Эксклюзивный контент</div>
+                </div>
+
+                <div class="server-block">
+                    <div>
+                        <div class="server-label">Игровой сервер</div>
+                        <div class="server-address" id="serverIp">94.23.168.153:2568</div>
+                    </div>
+                    <div class="online-status">
+                        <div class="online-dot"></div>
+                        <div class="online-text">Онлайн</div>
+                    </div>
+                </div>
+
+                <div class="nick-wrapper">
+                    <div class="nick-label">Ваш ник (формат: NICK_SURNAME)</div>
+                    <input type="text" class="nick-input" id="nickInput" placeholder="Например: CryCry_Style" maxlength="32">
+                    <div class="nick-error" id="nickError">Ник должен содержать буквы латиницы, цифры и символ "_" (формат: NICK_SURNAME)</div>
+                </div>
+
+                <div class="progress-panel" id="progressPanel" style="display:none">
+                    <div class="progress-bar-bg"><div class="progress-fill" id="progressFill"></div></div>
+                    <div class="progress-stats-row">
+                        <span id="progressPercent">0%</span>
+                        <span id="progressSpeed">0 mb/s</span>
+                        <span id="progressSize">0 / 0 mb</span>
+                        <span id="progressTime">--:--</span>
+                    </div>
+                </div>
+
+                <div class="flex-buttons">
+                    <button class="primary-btn" id="installBtn">📥 Установить игру</button>
+                    <button class="secondary-btn" id="cancelBtn" style="display:none">❌ Отменить</button>
+                    <button class="secondary-btn" id="playBtn" style="display:none">🎮 Запустить</button>
+                </div>
+
                 <div class="status-message status-ready" id="statusMsg">✓ Готов к работе</div>
             </div>
+
             <div id="pageNews" style="display:none">
-                <div style="margin-bottom:20px"><div style="font-size:22px;font-weight:700;color:white">Последние новости</div><div style="height:3px;width:55px;background:#e74c3c;margin-top:8px"></div></div>
+                <div style="margin-bottom:20px">
+                    <div style="font-size:22px;font-weight:700;color:white">Последние новости</div>
+                    <div style="height:3px;width:55px;background:#e74c3c;margin-top:8px"></div>
+                </div>
                 <div id="newsList"></div>
             </div>
+
             <div id="pageSettings" style="display:none">
-                <div class="settings-card"><div class="settings-title">Системные настройки</div>
-                <div class="setting-item"><div><div class="setting-label">Автоочистка</div><div class="setting-description">Удалять временные файлы после установки</div></div><div class="toggle-switch" id="autoCleanToggle"><div class="toggle-slider"></div></div></div>
-                <div class="setting-item"><div><div class="setting-label">Звук уведомлений</div><div class="setting-description">Сигнал при завершении загрузки</div></div><div class="toggle-switch" id="soundToggle"><div class="toggle-slider"></div></div></div></div>
-                <div class="settings-card"><div class="settings-title">Путь установки игры</div><input type="text" class="folder-input" id="gamePathInput" value="C:\DrayGame"><button class="secondary-btn" id="selectFolderBtn" style="margin-top:14px;width:100%">📂 Выбрать другую папку</button></div>
-                <div class="settings-card"><div class="settings-title">Система</div><button class="secondary-btn" id="verifyFilesBtn" style="width:100%">🔍 Проверить целостность</button><button class="secondary-btn" id="resetSettingsBtn" style="width:100%;margin-top:10px">↺ Сбросить настройки</button></div>
+                <div class="settings-card">
+                    <div class="settings-title">Системные настройки</div>
+                    <div class="setting-item">
+                        <div><div class="setting-label">Автоочистка</div><div class="setting-description">Удалять временные файлы после установки</div></div>
+                        <div class="toggle-switch" id="autoCleanToggle"><div class="toggle-slider"></div></div>
+                    </div>
+                    <div class="setting-item">
+                        <div><div class="setting-label">Звук уведомлений</div><div class="setting-description">Сигнал при завершении загрузки</div></div>
+                        <div class="toggle-switch" id="soundToggle"><div class="toggle-slider"></div></div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="settings-title">Путь установки игры</div>
+                    <input type="text" class="folder-input" id="gamePathInput" value="C:\DrayGame">
+                    <button class="secondary-btn" id="selectFolderBtn" style="margin-top:14px;width:100%">📂 Выбрать другую папку</button>
+                </div>
+
+                <div class="settings-card">
+                    <div class="settings-title">Система</div>
+                    <button class="secondary-btn" id="verifyFilesBtn" style="width:100%">🔍 Проверить целостность</button>
+                    <button class="secondary-btn" id="resetSettingsBtn" style="width:100%;margin-top:10px">↺ Сбросить настройки</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ============ ЗАЩИТА ОТ F12 (DEVTOOLS) ============
+    // ============ ЗАЩИТА ============
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'F12' || 
-            (e.ctrlKey && e.shiftKey && ['I', 'J'].includes(e.key.toUpperCase())) ||
-            (e.ctrlKey && e.key === 'u')) {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J'].includes(e.key.toUpperCase())) || (e.ctrlKey && e.key === 'u')) {
             e.preventDefault();
             return false;
         }
     });
-    
-    // ============ БЛОКИРОВКА CTRL+R ============
+
     document.addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'r') {
             e.preventDefault();
             return false;
         }
     });
-    
-    // ============ БЛОКИРОВКА ПРАВОЙ КНОПКИ ============
+
     document.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         return false;
     });
-    
+
     // ============ КОНФИГ ============
     const gameServer = '94.23.168.153:2568';
     const defaultPath = 'C:\\DrayGame';
     const githubVersionUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/version.json';
     const githubNewsUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/news.json';
-    
+
     let gameUrl = '';
     let gameSize = 6871947674;
     let isDownloading = false;
     let gameInstalled = false;
-    
+    let savedNick = '';
+
     let settings = {
         autoClean: false,
         soundEnabled: true,
         gamePath: defaultPath
     };
-    
+
     // ============ ВСПОМОГАТЕЛЬНЫЕ ============
     function showToast(msg) {
         const toast = document.createElement('div');
@@ -164,12 +650,33 @@
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3500);
     }
-    
+
     function formatBytes(bytes) {
         return `${(bytes / 1024 / 1024).toFixed(2)} mb`;
     }
-    
-    // ============ ЗАГРУЗКА ДАННЫХ С GITHUB ============
+
+    // ============ ПРОВЕРКА НИКА ============
+    function validateNick(nick) {
+        if (!nick || nick.trim().length < 3) {
+            return { valid: false, error: 'Ник слишком короткий (минимум 3 символа)' };
+        }
+        if (nick.trim().length > 32) {
+            return { valid: false, error: 'Ник слишком длинный (максимум 32 символа)' };
+        }
+        if (!/^[A-Za-z0-9_]+$/.test(nick)) {
+            return { valid: false, error: 'Только латиница, цифры и _' };
+        }
+        if (!nick.includes('_')) {
+            return { valid: false, error: 'Ник должен содержать символ "_" (формат: NICK_SURNAME)' };
+        }
+        const parts = nick.split('_');
+        if (parts.length < 2 || parts[0].length < 1 || parts[1].length < 1) {
+            return { valid: false, error: 'Формат: NICK_SURNAME (обе части не пустые)' };
+        }
+        return { valid: true, error: null };
+    }
+
+    // ============ ЗАГРУЗКА ДАННЫХ ============
     async function loadGameInfo() {
         try {
             const res = await fetch(githubVersionUrl + '?t=' + Date.now());
@@ -179,20 +686,16 @@
             if (data.ui_version) {
                 document.getElementById('versionTag').innerText = `v${data.ui_version}`;
             }
-            console.log('Game info loaded:', gameUrl);
         } catch(e) {
-            console.error('Load game info error:', e);
-            gameUrl = 'https://ci390320.tw1.ru/game/game.zip';
+            gameUrl = 'https://cr949549.tw1.ru/game/game.zip';
         }
     }
-    
+
     async function loadNews() {
         const container = document.getElementById('newsList');
         try {
             const res = await fetch(githubNewsUrl + '?t=' + Date.now());
-            console.log('News response status:', res.status);
             const news = await res.json();
-            console.log('News loaded:', news);
             if (news && news.length) {
                 container.innerHTML = news.map(n => `
                     <div class="news-item">
@@ -205,7 +708,6 @@
                 throw new Error('Нет новостей');
             }
         } catch(e) {
-            console.error('Load news error:', e);
             container.innerHTML = `
                 <div class="news-item">
                     <div class="news-title">Добро пожаловать</div>
@@ -215,15 +717,15 @@
             `;
         }
     }
-    
+
     function escapeHtml(str) {
         if (!str) return '';
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     }
-    
-    // ============ ПРОВЕРКА МЕСТА НА ДИСКЕ ============
+
+    // ============ ПРОВЕРКА МЕСТА ============
     async function checkDiskSpace() {
         if (!window.electronAPI) return true;
         try {
@@ -238,7 +740,7 @@
             return true;
         }
     }
-    
+
     // ============ ПРОВЕРКА УСТАНОВЛЕНА ЛИ ИГРА ============
     async function checkGameInstalled() {
         if (!window.electronAPI) return;
@@ -260,7 +762,21 @@
             console.error('checkGame error:', e);
         }
     }
-    
+
+    // ============ ЗАГРУЗКА СОХРАНЁННОГО НИКА ============
+    function loadNick() {
+        const saved = localStorage.getItem('dray_nick');
+        if (saved) {
+            savedNick = saved;
+            document.getElementById('nickInput').value = saved;
+        }
+    }
+
+    function saveNick(nick) {
+        localStorage.setItem('dray_nick', nick);
+        savedNick = nick;
+    }
+
     // ============ СКАЧИВАНИЕ ============
     async function installGame() {
         if (isDownloading) return;
@@ -268,10 +784,10 @@
             showToast('Эта функция работает только в приложении');
             return;
         }
-        
+
         const hasSpace = await checkDiskSpace();
         if (!hasSpace) return;
-        
+
         isDownloading = true;
         const installBtn = document.getElementById('installBtn');
         const cancelBtn = document.getElementById('cancelBtn');
@@ -281,23 +797,18 @@
         const progressSpeedSpan = document.getElementById('progressSpeed');
         const progressSizeSpan = document.getElementById('progressSize');
         const statusDiv = document.getElementById('statusMsg');
-        
+
         installBtn.disabled = true;
         installBtn.style.display = 'none';
         cancelBtn.style.display = 'flex';
         progressPanel.style.display = 'block';
         statusDiv.className = 'status-message status-busy';
         statusDiv.innerText = '↓ Скачивание...';
-        
+
         try {
-            const result = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
+            const result = await window.electronAPI.downloadGame(settings.gamePath);
             if (!result.success) throw new Error(result.error);
-            
-            statusDiv.innerText = '📦 Распаковка...';
-            
-            const extractResult = await window.electronAPI.extractZip(result.path, settings.gamePath);
-            if (!extractResult.success) throw new Error(extractResult.error);
-            
+
             statusDiv.className = 'status-message status-success';
             statusDiv.innerText = '✓ Игра установлена!';
             gameInstalled = true;
@@ -305,7 +816,7 @@
             cancelBtn.style.display = 'none';
             document.getElementById('playBtn').style.display = 'flex';
             showToast('Игра установлена!');
-            
+
         } catch (err) {
             statusDiv.className = 'status-message status-busy';
             statusDiv.innerText = `✗ Ошибка: ${err.message}`;
@@ -322,7 +833,7 @@
             }, 3000);
         }
     }
-    
+
     // ============ ОТМЕНА ============
     async function cancelDownload() {
         if (!isDownloading) return;
@@ -338,7 +849,7 @@
             showToast('Загрузка отменена');
         }
     }
-    
+
     // ============ ПРОГРЕСС ============
     if (window.electronAPI) {
         window.electronAPI.onDownloadProgress((data) => {
@@ -352,27 +863,77 @@
             sizeSpan.innerText = `${formatBytes(data.transferred)} / ${formatBytes(data.total)}`;
         });
     }
-    
-    // ============ ЗАПУСК ИГРЫ ============
+
+    // ============ ЗАПУСК ИГРЫ С НИКОМ ============
     async function launchGame() {
+        const nickInput = document.getElementById('nickInput');
+        const nick = nickInput.value.trim();
+        const errorDiv = document.getElementById('nickError');
+
+        const validation = validateNick(nick);
+        if (!validation.valid) {
+            errorDiv.textContent = validation.error;
+            errorDiv.classList.add('show');
+            nickInput.classList.add('error');
+            showToast('Ошибка: ' + validation.error);
+            return;
+        }
+
+        errorDiv.classList.remove('show');
+        nickInput.classList.remove('error');
+        saveNick(nick);
+
         if (!window.electronAPI) {
             window.location.href = `samp://${gameServer}`;
             return;
         }
+
         const statusDiv = document.getElementById('statusMsg');
         statusDiv.className = 'status-message status-busy';
         statusDiv.innerText = '🎮 Запуск...';
-        
-        const result = await window.electronAPI.launchGame(settings.gamePath, gameServer);
-        if (result.success) {
-            statusDiv.className = 'status-message status-success';
-            statusDiv.innerText = '✓ Игра запущена';
-        } else {
+
+        try {
+            const result = await window.electronAPI.launchGame(
+                settings.gamePath,
+                gameServer,
+                nick
+            );
+
+            if (result.success) {
+                statusDiv.className = 'status-message status-success';
+                statusDiv.innerText = '✓ Игра запущена';
+                showToast('Игра запущена с ником: ' + nick);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (err) {
             statusDiv.className = 'status-message status-busy';
-            statusDiv.innerText = `✗ ${result.error}`;
+            statusDiv.innerText = `✗ Ошибка: ${err.message}`;
+            showToast('Ошибка запуска: ' + err.message);
         }
     }
-    
+
+    document.getElementById('nickInput').addEventListener('input', function() {
+        const nick = this.value.trim();
+        const errorDiv = document.getElementById('nickError');
+        
+        if (nick.length === 0) {
+            errorDiv.classList.remove('show');
+            this.classList.remove('error');
+            return;
+        }
+        
+        const validation = validateNick(nick);
+        if (!validation.valid) {
+            errorDiv.textContent = validation.error;
+            errorDiv.classList.add('show');
+            this.classList.add('error');
+        } else {
+            errorDiv.classList.remove('show');
+            this.classList.remove('error');
+        }
+    });
+
     // ============ ПРОВЕРКА ФАЙЛОВ ============
     async function verifyFiles() {
         const statusDiv = document.getElementById('statusMsg');
@@ -383,7 +944,7 @@
         statusDiv.innerText = '✓ Все файлы в порядке';
         showToast('Проверка завершена');
     }
-    
+
     // ============ НАСТРОЙКИ ============
     function loadSettings() {
         const saved = localStorage.getItem('dray_settings');
@@ -394,11 +955,11 @@
         document.getElementById('soundToggle').classList.toggle('active', settings.soundEnabled);
         document.getElementById('gamePathInput').value = settings.gamePath;
     }
-    
+
     function saveSettings() {
         localStorage.setItem('dray_settings', JSON.stringify(settings));
     }
-    
+
     function setupToggles() {
         document.getElementById('autoCleanToggle').onclick = () => {
             settings.autoClean = !settings.autoClean;
@@ -411,7 +972,7 @@
             saveSettings();
         };
     }
-    
+
     function setupPath() {
         const input = document.getElementById('gamePathInput');
         input.onchange = () => {
@@ -434,7 +995,7 @@
             }
         };
     }
-    
+
     function setupReset() {
         document.getElementById('resetSettingsBtn').onclick = () => {
             settings = { autoClean: false, soundEnabled: true, gamePath: defaultPath };
@@ -445,7 +1006,7 @@
         };
         document.getElementById('verifyFilesBtn').onclick = verifyFiles;
     }
-    
+
     // ============ НАВИГАЦИЯ ============
     function setupNavigation() {
         const navs = document.querySelectorAll('.nav-item');
@@ -465,7 +1026,7 @@
             };
         });
     }
-    
+
     // ============ УПРАВЛЕНИЕ ОКНОМ ============
     function setupWindowControls() {
         document.getElementById('minimizeBtn').onclick = () => {
@@ -476,17 +1037,16 @@
             else window.close();
         };
     }
-    
+
     // ============ ГЛАВНЫЕ КНОПКИ ============
     function setupMainButtons() {
         document.getElementById('installBtn').onclick = installGame;
         document.getElementById('cancelBtn').onclick = cancelDownload;
         document.getElementById('playBtn').onclick = launchGame;
     }
-    
+
     // ============ ИНИЦИАЛИЗАЦИЯ ============
     async function init() {
-        console.log('Dray Launcher starting...');
         loadSettings();
         setupNavigation();
         setupToggles();
@@ -494,14 +1054,14 @@
         setupReset();
         setupMainButtons();
         setupWindowControls();
+        loadNick();
         await loadGameInfo();
         await loadNews();
         await checkGameInstalled();
         document.getElementById('serverIp').innerText = gameServer;
         showToast('Добро пожаловать в dray launcher');
-        console.log('Dray Launcher ready!');
     }
-    
+
     init();
 </script>
 </body>
