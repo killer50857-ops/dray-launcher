@@ -18,7 +18,6 @@
             overflow: hidden;
         }
 
-        /* Главное окно */
         .app {
             width: 100vw;
             height: 100vh;
@@ -27,7 +26,6 @@
             flex-direction: column;
         }
 
-        /* Верхняя панель */
         .title-bar {
             height: 52px;
             background: rgba(26, 26, 46, 0.85);
@@ -98,7 +96,6 @@
             background: #e74c3c;
         }
 
-        /* Основное тело */
         .main-layout {
             display: flex;
             flex: 1;
@@ -107,7 +104,6 @@
             overflow: hidden;
         }
 
-        /* Боковое меню */
         .sidebar {
             width: 210px;
             display: flex;
@@ -140,7 +136,6 @@
             border-left: 2px solid #e74c3c;
         }
 
-        /* Контент */
         .content-panel {
             flex: 1;
             overflow-y: auto;
@@ -161,7 +156,6 @@
             border-radius: 10px;
         }
 
-        /* Карточки */
         .hero-card {
             background: rgba(231, 76, 60, 0.06);
             border-radius: 28px;
@@ -182,7 +176,6 @@
             font-size: 14px;
         }
 
-        /* Сервер */
         .server-block {
             background: rgba(0,0,0,0.45);
             border-radius: 20px;
@@ -231,7 +224,6 @@
             font-weight: 500;
         }
 
-        /* Прогресс */
         .progress-panel {
             background: rgba(0,0,0,0.5);
             border-radius: 20px;
@@ -264,7 +256,6 @@
             gap: 12px;
         }
 
-        /* Кнопки */
         .flex-buttons {
             display: flex;
             gap: 12px;
@@ -315,7 +306,6 @@
             border-color: #e74c3c;
         }
 
-        /* Статус */
         .status-message {
             padding: 12px;
             border-radius: 60px;
@@ -340,7 +330,6 @@
             color: #4caf50;
         }
 
-        /* Настройки */
         .settings-card {
             background: rgba(255,255,255,0.02);
             border-radius: 24px;
@@ -386,7 +375,6 @@
             font-family: monospace;
         }
 
-        /* Переключатель */
         .toggle-switch {
             width: 46px;
             height: 26px;
@@ -416,7 +404,6 @@
             left: 23px;
         }
 
-        /* Новости */
         .news-item {
             background: rgba(255,255,255,0.02);
             border-radius: 20px;
@@ -449,7 +436,6 @@
             margin-top: 8px;
         }
 
-        /* Уведомления */
         .toast-notify {
             position: fixed;
             bottom: 24px;
@@ -466,14 +452,8 @@
         }
 
         @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
@@ -531,6 +511,7 @@
 
                 <div class="flex-buttons">
                     <button class="primary-btn" id="installBtn">📥 Установить игру</button>
+                    <button class="secondary-btn" id="cancelBtn" style="display: none;">❌ Отменить</button>
                     <button class="secondary-btn" id="playBtn" style="display: none;">🎮 Запустить</button>
                 </div>
 
@@ -666,20 +647,42 @@
         return div.innerHTML;
     }
     
-    // ============ Проверка наличия игры ============
+    // ============ Проверка наличия игры (обновлено) ============
     async function checkGameInstalled() {
-        if (window.electronAPI) {
-            const installed = await window.electronAPI.checkGame(settings.gamePath);
-            gameInstalled = installed;
-            const installBtn = document.getElementById('installBtn');
-            const playBtn = document.getElementById('playBtn');
-            if (installed) {
-                installBtn.style.display = 'none';
-                playBtn.style.display = 'flex';
+        if (!window.electronAPI) return;
+        
+        try {
+            const result = await window.electronAPI.checkGame(settings.gamePath);
+            
+            if (result.hasExe) {
+                // Игра установлена
+                gameInstalled = true;
+                document.getElementById('installBtn').style.display = 'none';
+                document.getElementById('cancelBtn').style.display = 'none';
+                document.getElementById('playBtn').style.display = 'flex';
+                document.getElementById('statusMsg').innerHTML = '✓ Игра установлена';
+                document.getElementById('statusMsg').className = 'status-message status-success';
+            } else if (result.hasPartialZip) {
+                // Есть частично скачанный архив
+                gameInstalled = false;
+                document.getElementById('installBtn').style.display = 'flex';
+                document.getElementById('installBtn').innerHTML = '📥 Продолжить установку';
+                document.getElementById('cancelBtn').style.display = 'none';
+                document.getElementById('playBtn').style.display = 'none';
+                document.getElementById('statusMsg').innerHTML = `⚠ Найден архив (${formatBytes(result.zipSize)}). Продолжите установку.`;
+                document.getElementById('statusMsg').className = 'status-message status-busy';
             } else {
-                installBtn.style.display = 'flex';
-                playBtn.style.display = 'none';
+                // Нет игры
+                gameInstalled = false;
+                document.getElementById('installBtn').style.display = 'flex';
+                document.getElementById('installBtn').innerHTML = '📥 Установить игру';
+                document.getElementById('cancelBtn').style.display = 'none';
+                document.getElementById('playBtn').style.display = 'none';
+                document.getElementById('statusMsg').innerHTML = '✓ Готов к установке';
+                document.getElementById('statusMsg').className = 'status-message status-ready';
             }
+        } catch(e) {
+            console.error('Ошибка проверки игры:', e);
         }
     }
     
@@ -693,6 +696,7 @@
         
         isDownloading = true;
         const installBtn = document.getElementById('installBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
         const progressPanel = document.getElementById('progressPanel');
         const progressFill = document.getElementById('progressFill');
         const progressPercentSpan = document.getElementById('progressPercent');
@@ -701,24 +705,32 @@
         const statusDiv = document.getElementById('statusMsg');
         
         installBtn.disabled = true;
-        installBtn.innerText = '⏳ Загрузка...';
+        installBtn.style.display = 'none';
+        cancelBtn.style.display = 'flex';
         progressPanel.style.display = 'block';
         statusDiv.className = 'status-message status-busy';
         statusDiv.innerText = '↓ Скачивание...';
         
         try {
+            // Скачиваем
             const downloadResult = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
             if (!downloadResult.success) throw new Error(downloadResult.error);
             
-            statusDiv.innerText = '📦 Распаковка...';
+            statusDiv.innerText = '⏳ Обработка...';
             
+            // Ждём 2 секунды перед распаковкой
+            await new Promise(r => setTimeout(r, 2000));
+            
+            // Распаковываем
             const extractResult = await window.electronAPI.extractZip(downloadResult.path, settings.gamePath);
             if (!extractResult.success) throw new Error(extractResult.error);
             
+            // Успех
             statusDiv.className = 'status-message status-success';
             statusDiv.innerText = '✓ Игра установлена!';
             gameInstalled = true;
             installBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
             document.getElementById('playBtn').style.display = 'flex';
             playSound();
             showToast('Игра успешно установлена!');
@@ -726,16 +738,34 @@
         } catch (err) {
             statusDiv.className = 'status-message status-busy';
             statusDiv.innerText = `✗ Ошибка: ${err.message}`;
-            installBtn.innerText = '📥 Повторить';
+            installBtn.style.display = 'flex';
+            installBtn.innerHTML = '📥 Повторить';
             showToast(`Ошибка: ${err.message}`);
         } finally {
             isDownloading = false;
             installBtn.disabled = false;
+            cancelBtn.style.display = 'none';
             setTimeout(() => {
                 if (!isDownloading && gameInstalled) {
                     progressPanel.style.display = 'none';
                 }
             }, 3000);
+        }
+    }
+    
+    // Отмена загрузки
+    async function cancelDownload() {
+        if (!isDownloading) return;
+        if (window.electronAPI) {
+            await window.electronAPI.cancelDownload();
+            isDownloading = false;
+            document.getElementById('installBtn').style.display = 'flex';
+            document.getElementById('installBtn').disabled = false;
+            document.getElementById('cancelBtn').style.display = 'none';
+            document.getElementById('progressPanel').style.display = 'none';
+            document.getElementById('statusMsg').innerHTML = '✓ Загрузка отменена';
+            document.getElementById('statusMsg').className = 'status-message status-ready';
+            showToast('Загрузка отменена');
         }
     }
     
@@ -893,6 +923,7 @@
     // ============ Главные кнопки ============
     function setupMainButtons() {
         document.getElementById('installBtn').onclick = installGame;
+        document.getElementById('cancelBtn').onclick = cancelDownload;
         document.getElementById('playBtn').onclick = launchGame;
     }
     
@@ -907,7 +938,7 @@
         setupWindowControls();
         await loadGameInfo();
         await loadNews();
-        if (window.electronAPI) await checkGameInstalled();
+        await checkGameInstalled();
         document.getElementById('serverIp').innerText = gameServer;
         showToast('Добро пожаловать в dray launcher');
     }
