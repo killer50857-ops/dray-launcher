@@ -99,7 +99,10 @@
                 <div class="flex-buttons"><button class="primary-btn" id="installBtn">📥 Установить игру</button><button class="secondary-btn" id="cancelBtn" style="display:none">❌ Отменить</button><button class="secondary-btn" id="playBtn" style="display:none">🎮 Запустить</button></div>
                 <div class="status-message status-ready" id="statusMsg">✓ Готов к работе</div>
             </div>
-            <div id="pageNews" style="display:none"><div style="margin-bottom:20px"><div style="font-size:22px;font-weight:700;color:white">Последние новости</div><div style="height:3px;width:55px;background:#e74c3c;margin-top:8px"></div></div><div id="newsList"></div></div>
+            <div id="pageNews" style="display:none">
+                <div style="margin-bottom:20px"><div style="font-size:22px;font-weight:700;color:white">Последние новости</div><div style="height:3px;width:55px;background:#e74c3c;margin-top:8px"></div></div>
+                <div id="newsList"></div>
+            </div>
             <div id="pageSettings" style="display:none">
                 <div class="settings-card"><div class="settings-title">Системные настройки</div>
                 <div class="setting-item"><div><div class="setting-label">Автоочистка</div><div class="setting-description">Удалять временные файлы после установки</div></div><div class="toggle-switch" id="autoCleanToggle"><div class="toggle-slider"></div></div></div>
@@ -112,173 +115,218 @@
 </div>
 
 <script>
-    (function() {
-        console.log('=== DRAY LAUNCHER START ===');
-        console.log('electronAPI:', window.electronAPI);
-        
-        // ПРОВЕРКА electronAPI
+    // ============ ЗАЩИТА ОТ F12 (DEVTOOLS) ============
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12' || 
+            (e.ctrlKey && e.shiftKey && ['I', 'J'].includes(e.key.toUpperCase())) ||
+            (e.ctrlKey && e.key === 'u')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // ============ БЛОКИРОВКА CTRL+R ============
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'r') {
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    // ============ БЛОКИРОВКА ПРАВОЙ КНОПКИ ============
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+    });
+    
+    // ============ КОНФИГ ============
+    const gameServer = '94.23.168.153:2568';
+    const defaultPath = 'C:\\DrayGame';
+    const githubVersionUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/version.json';
+    const githubNewsUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/news.json';
+    
+    let gameUrl = '';
+    let gameSize = 6871947674;
+    let isDownloading = false;
+    let gameInstalled = false;
+    
+    let settings = {
+        autoClean: false,
+        soundEnabled: true,
+        gamePath: defaultPath
+    };
+    
+    // ============ ВСПОМОГАТЕЛЬНЫЕ ============
+    function showToast(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notify';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+    
+    function formatBytes(bytes) {
+        return `${(bytes / 1024 / 1024).toFixed(2)} mb`;
+    }
+    
+    // ============ ЗАГРУЗКА ДАННЫХ С GITHUB ============
+    async function loadGameInfo() {
+        try {
+            const res = await fetch(githubVersionUrl + '?t=' + Date.now());
+            const data = await res.json();
+            if (data.game_url) gameUrl = data.game_url;
+            if (data.game_size) gameSize = data.game_size;
+            if (data.ui_version) {
+                document.getElementById('versionTag').innerText = `v${data.ui_version}`;
+            }
+            console.log('Game info loaded:', gameUrl);
+        } catch(e) {
+            console.error('Load game info error:', e);
+            gameUrl = 'https://ci390320.tw1.ru/game/game.zip';
+        }
+    }
+    
+    async function loadNews() {
+        const container = document.getElementById('newsList');
+        try {
+            const res = await fetch(githubNewsUrl + '?t=' + Date.now());
+            console.log('News response status:', res.status);
+            const news = await res.json();
+            console.log('News loaded:', news);
+            if (news && news.length) {
+                container.innerHTML = news.map(n => `
+                    <div class="news-item">
+                        <div class="news-title">${escapeHtml(n.title)}</div>
+                        <div class="news-text">${escapeHtml(n.text)}</div>
+                        <div class="news-date">${escapeHtml(n.date)}</div>
+                    </div>
+                `).join('');
+            } else {
+                throw new Error('Нет новостей');
+            }
+        } catch(e) {
+            console.error('Load news error:', e);
+            container.innerHTML = `
+                <div class="news-item">
+                    <div class="news-title">Добро пожаловать</div>
+                    <div class="news-text">Скачай игру через лаунчер и подключайся к серверу</div>
+                    <div class="news-date">${new Date().toLocaleDateString()}</div>
+                </div>
+            `;
+        }
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    // ============ ПРОВЕРКА МЕСТА НА ДИСКЕ ============
+    async function checkDiskSpace() {
+        if (!window.electronAPI) return true;
+        try {
+            const result = await window.electronAPI.checkDiskSpace(settings.gamePath);
+            if (!result.hasSpace) {
+                showToast(result.error);
+                document.getElementById('statusMsg').innerHTML = result.error;
+                return false;
+            }
+            return true;
+        } catch(e) {
+            return true;
+        }
+    }
+    
+    // ============ ПРОВЕРКА УСТАНОВЛЕНА ЛИ ИГРА ============
+    async function checkGameInstalled() {
+        if (!window.electronAPI) return;
+        try {
+            const installed = await window.electronAPI.checkGame(settings.gamePath);
+            gameInstalled = installed;
+            const installBtn = document.getElementById('installBtn');
+            const playBtn = document.getElementById('playBtn');
+            if (installed) {
+                installBtn.style.display = 'none';
+                playBtn.style.display = 'flex';
+                document.getElementById('statusMsg').innerHTML = '✓ Игра установлена';
+                document.getElementById('statusMsg').className = 'status-message status-success';
+            } else {
+                installBtn.style.display = 'flex';
+                playBtn.style.display = 'none';
+            }
+        } catch(e) {
+            console.error('checkGame error:', e);
+        }
+    }
+    
+    // ============ СКАЧИВАНИЕ ============
+    async function installGame() {
+        if (isDownloading) return;
         if (!window.electronAPI) {
-            console.error('electronAPI НЕ ЗАГРУЖЕН!');
-            document.getElementById('statusMsg').innerHTML = '❌ Ошибка: electronAPI не загружен. Переустановите лаунчер.';
+            showToast('Эта функция работает только в приложении');
             return;
         }
         
-        // ============ КОНФИГ ============
-        const gameServer = '94.23.168.153:2568';
-        const defaultPath = 'C:\\DrayGame';
-        const githubVersionUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/version.json';
-        const githubNewsUrl = 'https://raw.githubusercontent.com/killer50857-ops/dray-launcher/main/news.json';
+        const hasSpace = await checkDiskSpace();
+        if (!hasSpace) return;
         
-        let gameUrl = '';
-        let gameSize = 6871947674;
-        let isDownloading = false;
-        let gameInstalled = false;
+        isDownloading = true;
+        const installBtn = document.getElementById('installBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const progressPanel = document.getElementById('progressPanel');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercentSpan = document.getElementById('progressPercent');
+        const progressSpeedSpan = document.getElementById('progressSpeed');
+        const progressSizeSpan = document.getElementById('progressSize');
+        const statusDiv = document.getElementById('statusMsg');
         
-        let settings = {
-            autoClean: false,
-            soundEnabled: true,
-            gamePath: defaultPath
-        };
+        installBtn.disabled = true;
+        installBtn.style.display = 'none';
+        cancelBtn.style.display = 'flex';
+        progressPanel.style.display = 'block';
+        statusDiv.className = 'status-message status-busy';
+        statusDiv.innerText = '↓ Скачивание...';
         
-        // ============ ВСПОМОГАТЕЛЬНЫЕ ============
-        function showToast(msg) {
-            const toast = document.createElement('div');
-            toast.className = 'toast-notify';
-            toast.innerText = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3500);
-        }
-        
-        function formatBytes(bytes) {
-            return `${(bytes / 1024 / 1024).toFixed(2)} mb`;
-        }
-        
-        // ============ ЗАГРУЗКА ДАННЫХ ============
-        async function loadGameInfo() {
-            try {
-                const res = await fetch(githubVersionUrl + '?t=' + Date.now());
-                const data = await res.json();
-                if (data.game_url) gameUrl = data.game_url;
-                if (data.game_size) gameSize = data.game_size;
-            } catch(e) {
-                gameUrl = 'https://drive.usercontent.google.com/download?id=1QdPe5xvEAfmgiGScmwTfjhde_2sPTBoT&export=download&confirm=t';
-            }
-        }
-        
-        async function loadNews() {
-            const container = document.getElementById('newsList');
-            try {
-                const res = await fetch(githubNewsUrl + '?t=' + Date.now());
-                const news = await res.json();
-                if (news.length) {
-                    container.innerHTML = news.map(n => `<div class="news-item"><div class="news-title">${escapeHtml(n.title)}</div><div class="news-text">${escapeHtml(n.text)}</div><div class="news-date">${escapeHtml(n.date)}</div></div>`).join('');
-                }
-            } catch(e) {
-                container.innerHTML = `<div class="news-item"><div class="news-title">Добро пожаловать</div><div class="news-text">Скачай игру через лаунчер</div><div class="news-date">Сегодня</div></div>`;
-            }
-        }
-        
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        }
-        
-        // ============ ПРОВЕРКА МЕСТА ============
-        async function checkDiskSpace() {
-            try {
-                const result = await window.electronAPI.checkDiskSpace(settings.gamePath);
-                if (!result.hasSpace) {
-                    showToast(result.error);
-                    document.getElementById('statusMsg').innerHTML = result.error;
-                    return false;
-                }
-                return true;
-            } catch(e) {
-                return true;
-            }
-        }
-        
-        // ============ ПРОВЕРКА УСТАНОВЛЕНА ЛИ ИГРА ============
-        async function checkGameInstalled() {
-            try {
-                const installed = await window.electronAPI.checkGame(settings.gamePath);
-                gameInstalled = installed;
-                const installBtn = document.getElementById('installBtn');
-                const playBtn = document.getElementById('playBtn');
-                if (installed) {
-                    installBtn.style.display = 'none';
-                    playBtn.style.display = 'flex';
-                } else {
-                    installBtn.style.display = 'flex';
-                    playBtn.style.display = 'none';
-                }
-            } catch(e) {
-                console.error('checkGame error:', e);
-            }
-        }
-        
-        // ============ СКАЧИВАНИЕ ============
-        async function installGame() {
-            if (isDownloading) return;
+        try {
+            const result = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
+            if (!result.success) throw new Error(result.error);
             
-            const hasSpace = await checkDiskSpace();
-            if (!hasSpace) return;
+            statusDiv.innerText = '📦 Распаковка...';
             
-            isDownloading = true;
-            const installBtn = document.getElementById('installBtn');
-            const cancelBtn = document.getElementById('cancelBtn');
-            const progressPanel = document.getElementById('progressPanel');
-            const progressFill = document.getElementById('progressFill');
-            const progressPercentSpan = document.getElementById('progressPercent');
-            const progressSpeedSpan = document.getElementById('progressSpeed');
-            const progressSizeSpan = document.getElementById('progressSize');
-            const statusDiv = document.getElementById('statusMsg');
+            const extractResult = await window.electronAPI.extractZip(result.path, settings.gamePath);
+            if (!extractResult.success) throw new Error(extractResult.error);
             
-            installBtn.disabled = true;
+            statusDiv.className = 'status-message status-success';
+            statusDiv.innerText = '✓ Игра установлена!';
+            gameInstalled = true;
             installBtn.style.display = 'none';
-            cancelBtn.style.display = 'flex';
-            progressPanel.style.display = 'block';
-            statusDiv.className = 'status-message status-busy';
-            statusDiv.innerText = '↓ Скачивание...';
+            cancelBtn.style.display = 'none';
+            document.getElementById('playBtn').style.display = 'flex';
+            showToast('Игра установлена!');
             
-            try {
-                const result = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
-                if (!result.success) throw new Error(result.error);
-                
-                statusDiv.innerText = '📦 Распаковка...';
-                
-                const extractResult = await window.electronAPI.extractZip(result.path, settings.gamePath);
-                if (!extractResult.success) throw new Error(extractResult.error);
-                
-                statusDiv.className = 'status-message status-success';
-                statusDiv.innerText = '✓ Игра установлена!';
-                gameInstalled = true;
-                installBtn.style.display = 'none';
-                cancelBtn.style.display = 'none';
-                document.getElementById('playBtn').style.display = 'flex';
-                showToast('Игра установлена!');
-                
-            } catch (err) {
-                statusDiv.className = 'status-message status-busy';
-                statusDiv.innerText = `✗ Ошибка: ${err.message}`;
-                installBtn.style.display = 'flex';
-                installBtn.innerHTML = '📥 Повторить';
-            } finally {
-                isDownloading = false;
-                installBtn.disabled = false;
-                cancelBtn.style.display = 'none';
-                setTimeout(() => {
-                    if (!isDownloading && gameInstalled) {
-                        progressPanel.style.display = 'none';
-                    }
-                }, 3000);
-            }
+        } catch (err) {
+            statusDiv.className = 'status-message status-busy';
+            statusDiv.innerText = `✗ Ошибка: ${err.message}`;
+            installBtn.style.display = 'flex';
+            installBtn.innerHTML = '📥 Повторить';
+        } finally {
+            isDownloading = false;
+            installBtn.disabled = false;
+            cancelBtn.style.display = 'none';
+            setTimeout(() => {
+                if (!isDownloading && gameInstalled) {
+                    progressPanel.style.display = 'none';
+                }
+            }, 3000);
         }
-        
-        // ============ ОТМЕНА ============
-        async function cancelDownload() {
-            if (!isDownloading) return;
+    }
+    
+    // ============ ОТМЕНА ============
+    async function cancelDownload() {
+        if (!isDownloading) return;
+        if (window.electronAPI) {
             await window.electronAPI.cancelDownload();
             isDownloading = false;
             document.getElementById('installBtn').style.display = 'flex';
@@ -286,132 +334,13 @@
             document.getElementById('cancelBtn').style.display = 'none';
             document.getElementById('progressPanel').style.display = 'none';
             document.getElementById('statusMsg').innerHTML = '✓ Отменено';
+            document.getElementById('statusMsg').className = 'status-message status-ready';
             showToast('Загрузка отменена');
         }
-        
-        // ============ ЗАПУСК ИГРЫ ============
-        async function launchGame() {
-            const statusDiv = document.getElementById('statusMsg');
-            statusDiv.className = 'status-message status-busy';
-            statusDiv.innerText = '🎮 Запуск...';
-            
-            const result = await window.electronAPI.launchGame(settings.gamePath, gameServer);
-            if (result.success) {
-                statusDiv.className = 'status-message status-success';
-                statusDiv.innerText = '✓ Игра запущена';
-            } else {
-                statusDiv.className = 'status-message status-busy';
-                statusDiv.innerText = `✗ ${result.error}`;
-            }
-        }
-        
-        // ============ ПРОВЕРКА ФАЙЛОВ ============
-        async function verifyFiles() {
-            const statusDiv = document.getElementById('statusMsg');
-            statusDiv.className = 'status-message status-busy';
-            statusDiv.innerText = '🔍 Проверка...';
-            await new Promise(r => setTimeout(r, 2000));
-            statusDiv.className = 'status-message status-success';
-            statusDiv.innerText = '✓ Все файлы в порядке';
-            showToast('Проверка завершена');
-        }
-        
-        // ============ НАСТРОЙКИ ============
-        function loadSettings() {
-            const saved = localStorage.getItem('dray_settings');
-            if (saved) {
-                try { settings = JSON.parse(saved); } catch(e) {}
-            }
-            document.getElementById('autoCleanToggle').classList.toggle('active', settings.autoClean);
-            document.getElementById('soundToggle').classList.toggle('active', settings.soundEnabled);
-            document.getElementById('gamePathInput').value = settings.gamePath;
-        }
-        
-        function saveSettings() {
-            localStorage.setItem('dray_settings', JSON.stringify(settings));
-        }
-        
-        function setupToggles() {
-            document.getElementById('autoCleanToggle').onclick = () => {
-                settings.autoClean = !settings.autoClean;
-                document.getElementById('autoCleanToggle').classList.toggle('active', settings.autoClean);
-                saveSettings();
-            };
-            document.getElementById('soundToggle').onclick = () => {
-                settings.soundEnabled = !settings.soundEnabled;
-                document.getElementById('soundToggle').classList.toggle('active', settings.soundEnabled);
-                saveSettings();
-            };
-        }
-        
-        function setupPath() {
-            const input = document.getElementById('gamePathInput');
-            input.onchange = () => {
-                settings.gamePath = input.value;
-                saveSettings();
-                checkGameInstalled();
-            };
-            document.getElementById('selectFolderBtn').onclick = async () => {
-                const folder = await window.electronAPI.selectFolder();
-                if (folder) {
-                    input.value = folder;
-                    settings.gamePath = folder;
-                    saveSettings();
-                    checkGameInstalled();
-                    showToast(`Папка: ${folder}`);
-                }
-            };
-        }
-        
-        function setupReset() {
-            document.getElementById('resetSettingsBtn').onclick = () => {
-                settings = { autoClean: false, soundEnabled: true, gamePath: defaultPath };
-                saveSettings();
-                loadSettings();
-                checkGameInstalled();
-                showToast('Настройки сброшены');
-            };
-            document.getElementById('verifyFilesBtn').onclick = verifyFiles;
-        }
-        
-        // ============ НАВИГАЦИЯ ============
-        function setupNavigation() {
-            const navs = document.querySelectorAll('.nav-item');
-            const pages = {
-                game: document.getElementById('pageGame'),
-                news: document.getElementById('pageNews'),
-                settings: document.getElementById('pageSettings')
-            };
-            navs.forEach(nav => {
-                nav.onclick = () => {
-                    const page = nav.dataset.page;
-                    navs.forEach(n => n.classList.remove('active'));
-                    nav.classList.add('active');
-                    Object.values(pages).forEach(p => p.style.display = 'none');
-                    pages[page].style.display = 'block';
-                    if (page === 'news') loadNews();
-                };
-            });
-        }
-        
-        // ============ УПРАВЛЕНИЕ ОКНОМ ============
-        function setupWindowControls() {
-            document.getElementById('minimizeBtn').onclick = () => {
-                window.electronAPI.minimizeWindow();
-            };
-            document.getElementById('closeBtn').onclick = () => {
-                window.electronAPI.closeWindow();
-            };
-        }
-        
-        // ============ ГЛАВНЫЕ КНОПКИ ============
-        function setupMainButtons() {
-            document.getElementById('installBtn').onclick = installGame;
-            document.getElementById('cancelBtn').onclick = cancelDownload;
-            document.getElementById('playBtn').onclick = launchGame;
-        }
-        
-        // ============ ПРОГРЕСС ============
+    }
+    
+    // ============ ПРОГРЕСС ============
+    if (window.electronAPI) {
         window.electronAPI.onDownloadProgress((data) => {
             const fill = document.getElementById('progressFill');
             const percentSpan = document.getElementById('progressPercent');
@@ -422,25 +351,158 @@
             speedSpan.innerText = `${data.speed} mb/s`;
             sizeSpan.innerText = `${formatBytes(data.transferred)} / ${formatBytes(data.total)}`;
         });
-        
-        // ============ ИНИЦИАЛИЗАЦИЯ ============
-        async function init() {
-            loadSettings();
-            setupNavigation();
-            setupToggles();
-            setupPath();
-            setupReset();
-            setupMainButtons();
-            setupWindowControls();
-            await loadGameInfo();
-            await loadNews();
-            await checkGameInstalled();
-            document.getElementById('serverIp').innerText = gameServer;
-            showToast('Добро пожаловать в dray launcher');
+    }
+    
+    // ============ ЗАПУСК ИГРЫ ============
+    async function launchGame() {
+        if (!window.electronAPI) {
+            window.location.href = `samp://${gameServer}`;
+            return;
         }
+        const statusDiv = document.getElementById('statusMsg');
+        statusDiv.className = 'status-message status-busy';
+        statusDiv.innerText = '🎮 Запуск...';
         
-        init();
-    })();
+        const result = await window.electronAPI.launchGame(settings.gamePath, gameServer);
+        if (result.success) {
+            statusDiv.className = 'status-message status-success';
+            statusDiv.innerText = '✓ Игра запущена';
+        } else {
+            statusDiv.className = 'status-message status-busy';
+            statusDiv.innerText = `✗ ${result.error}`;
+        }
+    }
+    
+    // ============ ПРОВЕРКА ФАЙЛОВ ============
+    async function verifyFiles() {
+        const statusDiv = document.getElementById('statusMsg');
+        statusDiv.className = 'status-message status-busy';
+        statusDiv.innerText = '🔍 Проверка...';
+        await new Promise(r => setTimeout(r, 2000));
+        statusDiv.className = 'status-message status-success';
+        statusDiv.innerText = '✓ Все файлы в порядке';
+        showToast('Проверка завершена');
+    }
+    
+    // ============ НАСТРОЙКИ ============
+    function loadSettings() {
+        const saved = localStorage.getItem('dray_settings');
+        if (saved) {
+            try { settings = JSON.parse(saved); } catch(e) {}
+        }
+        document.getElementById('autoCleanToggle').classList.toggle('active', settings.autoClean);
+        document.getElementById('soundToggle').classList.toggle('active', settings.soundEnabled);
+        document.getElementById('gamePathInput').value = settings.gamePath;
+    }
+    
+    function saveSettings() {
+        localStorage.setItem('dray_settings', JSON.stringify(settings));
+    }
+    
+    function setupToggles() {
+        document.getElementById('autoCleanToggle').onclick = () => {
+            settings.autoClean = !settings.autoClean;
+            document.getElementById('autoCleanToggle').classList.toggle('active', settings.autoClean);
+            saveSettings();
+        };
+        document.getElementById('soundToggle').onclick = () => {
+            settings.soundEnabled = !settings.soundEnabled;
+            document.getElementById('soundToggle').classList.toggle('active', settings.soundEnabled);
+            saveSettings();
+        };
+    }
+    
+    function setupPath() {
+        const input = document.getElementById('gamePathInput');
+        input.onchange = () => {
+            settings.gamePath = input.value;
+            saveSettings();
+            checkGameInstalled();
+        };
+        document.getElementById('selectFolderBtn').onclick = async () => {
+            if (window.electronAPI) {
+                const folder = await window.electronAPI.selectFolder();
+                if (folder) {
+                    input.value = folder;
+                    settings.gamePath = folder;
+                    saveSettings();
+                    checkGameInstalled();
+                    showToast(`Папка: ${folder}`);
+                }
+            } else {
+                showToast('Выбор папки доступен в приложении');
+            }
+        };
+    }
+    
+    function setupReset() {
+        document.getElementById('resetSettingsBtn').onclick = () => {
+            settings = { autoClean: false, soundEnabled: true, gamePath: defaultPath };
+            saveSettings();
+            loadSettings();
+            checkGameInstalled();
+            showToast('Настройки сброшены');
+        };
+        document.getElementById('verifyFilesBtn').onclick = verifyFiles;
+    }
+    
+    // ============ НАВИГАЦИЯ ============
+    function setupNavigation() {
+        const navs = document.querySelectorAll('.nav-item');
+        const pages = {
+            game: document.getElementById('pageGame'),
+            news: document.getElementById('pageNews'),
+            settings: document.getElementById('pageSettings')
+        };
+        navs.forEach(nav => {
+            nav.onclick = () => {
+                const page = nav.dataset.page;
+                navs.forEach(n => n.classList.remove('active'));
+                nav.classList.add('active');
+                Object.values(pages).forEach(p => p.style.display = 'none');
+                pages[page].style.display = 'block';
+                if (page === 'news') loadNews();
+            };
+        });
+    }
+    
+    // ============ УПРАВЛЕНИЕ ОКНОМ ============
+    function setupWindowControls() {
+        document.getElementById('minimizeBtn').onclick = () => {
+            if (window.electronAPI) window.electronAPI.minimizeWindow();
+        };
+        document.getElementById('closeBtn').onclick = () => {
+            if (window.electronAPI) window.electronAPI.closeWindow();
+            else window.close();
+        };
+    }
+    
+    // ============ ГЛАВНЫЕ КНОПКИ ============
+    function setupMainButtons() {
+        document.getElementById('installBtn').onclick = installGame;
+        document.getElementById('cancelBtn').onclick = cancelDownload;
+        document.getElementById('playBtn').onclick = launchGame;
+    }
+    
+    // ============ ИНИЦИАЛИЗАЦИЯ ============
+    async function init() {
+        console.log('Dray Launcher starting...');
+        loadSettings();
+        setupNavigation();
+        setupToggles();
+        setupPath();
+        setupReset();
+        setupMainButtons();
+        setupWindowControls();
+        await loadGameInfo();
+        await loadNews();
+        await checkGameInstalled();
+        document.getElementById('serverIp').innerText = gameServer;
+        showToast('Добро пожаловать в dray launcher');
+        console.log('Dray Launcher ready!');
+    }
+    
+    init();
 </script>
 </body>
 </html>
