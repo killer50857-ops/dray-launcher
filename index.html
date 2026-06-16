@@ -591,7 +591,7 @@
         toast.className = 'toast-notify';
         toast.innerText = msg;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
+        setTimeout(() => toast.remove(), 4000);
     }
     
     function playSound() {
@@ -647,32 +647,39 @@
         return div.innerHTML;
     }
     
-    // ============ Проверка наличия игры (обновлено) ============
+    // ============ Проверка места на диске ============
+    async function checkDiskSpace() {
+        if (!window.electronAPI) return true;
+        
+        try {
+            const result = await window.electronAPI.checkDiskSpace(settings.gamePath);
+            if (!result.hasSpace) {
+                showToast(result.error);
+                document.getElementById('statusMsg').innerHTML = result.error;
+                document.getElementById('statusMsg').className = 'status-message status-busy';
+                return false;
+            }
+            return true;
+        } catch(e) {
+            return true;
+        }
+    }
+    
+    // ============ Проверка наличия игры ============
     async function checkGameInstalled() {
         if (!window.electronAPI) return;
         
         try {
             const result = await window.electronAPI.checkGame(settings.gamePath);
             
-            if (result.hasExe) {
-                // Игра установлена
+            if (result === true) {
                 gameInstalled = true;
                 document.getElementById('installBtn').style.display = 'none';
                 document.getElementById('cancelBtn').style.display = 'none';
                 document.getElementById('playBtn').style.display = 'flex';
                 document.getElementById('statusMsg').innerHTML = '✓ Игра установлена';
                 document.getElementById('statusMsg').className = 'status-message status-success';
-            } else if (result.hasPartialZip) {
-                // Есть частично скачанный архив
-                gameInstalled = false;
-                document.getElementById('installBtn').style.display = 'flex';
-                document.getElementById('installBtn').innerHTML = '📥 Продолжить установку';
-                document.getElementById('cancelBtn').style.display = 'none';
-                document.getElementById('playBtn').style.display = 'none';
-                document.getElementById('statusMsg').innerHTML = `⚠ Найден архив (${formatBytes(result.zipSize)}). Продолжите установку.`;
-                document.getElementById('statusMsg').className = 'status-message status-busy';
             } else {
-                // Нет игры
                 gameInstalled = false;
                 document.getElementById('installBtn').style.display = 'flex';
                 document.getElementById('installBtn').innerHTML = '📥 Установить игру';
@@ -686,13 +693,17 @@
         }
     }
     
-    // ============ Скачивание + распаковка ============
+    // ============ Скачивание и распаковка ============
     async function installGame() {
         if (isDownloading) return;
         if (!window.electronAPI) {
             showToast('Эта функция работает только в приложении');
             return;
         }
+        
+        // Проверяем место на диске
+        const hasSpace = await checkDiskSpace();
+        if (!hasSpace) return;
         
         isDownloading = true;
         const installBtn = document.getElementById('installBtn');
@@ -712,28 +723,20 @@
         statusDiv.innerText = '↓ Скачивание...';
         
         try {
-            // Скачиваем
-            const downloadResult = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
-            if (!downloadResult.success) throw new Error(downloadResult.error);
+            const result = await window.electronAPI.downloadGame(gameUrl, settings.gamePath);
             
-            statusDiv.innerText = '⏳ Обработка...';
-            
-            // Ждём 2 секунды перед распаковкой
-            await new Promise(r => setTimeout(r, 2000));
-            
-            // Распаковываем
-            const extractResult = await window.electronAPI.extractZip(downloadResult.path, settings.gamePath);
-            if (!extractResult.success) throw new Error(extractResult.error);
-            
-            // Успех
-            statusDiv.className = 'status-message status-success';
-            statusDiv.innerText = '✓ Игра установлена!';
-            gameInstalled = true;
-            installBtn.style.display = 'none';
-            cancelBtn.style.display = 'none';
-            document.getElementById('playBtn').style.display = 'flex';
-            playSound();
-            showToast('Игра успешно установлена!');
+            if (result.success) {
+                statusDiv.className = 'status-message status-success';
+                statusDiv.innerText = '✓ Игра установлена!';
+                gameInstalled = true;
+                installBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                document.getElementById('playBtn').style.display = 'flex';
+                playSound();
+                showToast('Игра успешно установлена!');
+            } else {
+                throw new Error(result.error);
+            }
             
         } catch (err) {
             statusDiv.className = 'status-message status-busy';
@@ -776,11 +779,25 @@
             const percentSpan = document.getElementById('progressPercent');
             const speedSpan = document.getElementById('progressSpeed');
             const sizeSpan = document.getElementById('progressSize');
+            const timeSpan = document.getElementById('progressTime');
             
             fill.style.width = `${data.percent}%`;
             percentSpan.innerText = `${Math.round(data.percent)}%`;
             speedSpan.innerText = `${data.speed} mb/s`;
             sizeSpan.innerText = `${formatBytes(data.transferred)} / ${formatBytes(data.total)}`;
+            
+            if (data.total && data.speed > 0) {
+                const remaining = (data.total - data.transferred) / (data.speed * 1024 * 1024);
+                const mins = Math.floor(remaining / 60);
+                const secs = Math.floor(remaining % 60);
+                if (timeSpan) timeSpan.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+        });
+        
+        window.electronAPI.onDownloadStatus((data) => {
+            if (data.status === 'extracting') {
+                document.getElementById('statusMsg').innerHTML = '📦 Распаковка...';
+            }
         });
     }
     
